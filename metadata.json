@@ -1,0 +1,13 @@
+{
+    "description": "Simple extension to measure time. Primary button click starts/pauses the watch, secondary button resets it. Automatically pauses/resumes on screen locking.",
+    "name": "Stopwatch-Arvind",
+    "uuid": "stopwatch@arvind.github.com",
+    "shell-version": [
+        "45",
+        "46",
+        "47",
+        "48"
+    ],
+    "url": "https://github.com/arvind-github/stopwatch",
+    "version": 12
+}
