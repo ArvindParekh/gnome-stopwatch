@@ -214,9 +214,9 @@ export const StatsView = GObject.registerClass(
             this._graphArea.add_child(row);
          });
 
-         log(
+        console.debug(
             `Stopwatch: Created ${boxCount} heatmap boxes in ${weeks.length} weeks`
-         );
+        );
       }
 
       _getColorForIntensity(intensity) {

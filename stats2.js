@@ -1,39 +1,13 @@
-import Gio from "gi://Gio";
-
-const SETTINGS_SCHEMA = "org.gnome.shell.extensions.stopwatch";
-
-function getExtensionSettings() {
-    // Try to load schema from the extension's local schemas directory using this file's URL
-    try {
-        const thisFile = Gio.File.new_for_uri(import.meta.url);
-        const extensionDir = thisFile.get_parent();
-        const schemaDir = extensionDir.get_child("schemas");
-        if (schemaDir && schemaDir.query_exists(null)) {
-            const schemaSource = Gio.SettingsSchemaSource.newFromDirectory(
-                schemaDir.get_path(),
-                Gio.SettingsSchemaSource.get_default(),
-                false
-            );
-            const schemaObj = schemaSource.lookup(SETTINGS_SCHEMA, true);
-            if (schemaObj) {
-                return new Gio.Settings({ settings_schema: schemaObj });
-            }
-        }
-    } catch (_e) {
-        // fall through
-    }
-
-    // Fallback to global schema lookup if installed there
-    return new Gio.Settings({ schema_id: SETTINGS_SCHEMA });
-}
-
 export class StatsManager {
-    constructor() {
+    constructor(settings) {
         try {
-            this._settings = getExtensionSettings();
+            if (!settings) {
+                throw new Error("StatsManager requires a Gio.Settings instance");
+            }
+            this._settings = settings;
             this._stats = this._loadStats();
         } catch (e) {
-            log(`StatsManager constructor error: ${e.message}\n${e.stack}`);
+            console.error(`StatsManager constructor error: ${e.message}\n${e.stack}`);
             this._stats = {};
         }
     }

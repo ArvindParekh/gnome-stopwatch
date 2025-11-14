@@ -8,6 +8,7 @@
         "47",
         "48"
     ],
-    "url": "https://github.com/arvind-github/stopwatch",
+    "url": "https://github.com/ArvindParekh/gnome-stopwatch",
+    "settings-schema": "org.gnome.shell.extensions.stopwatch",
     "version": 12
 }

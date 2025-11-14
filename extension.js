@@ -35,21 +35,23 @@ import GLib from 'gi://GLib';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
+import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 
 import * as Misc from './misc.js';
 import * as Timer from './timer.js';
 import { StatsManager } from './stats2.js';
 import { StatsView } from './statsView.js';
 
-var storage = 0; // keep the timer state between screen locks
-var pausedAutomatically = false; // keep track of the timer state between the screen locks
+let storage = 0; // keep the timer state between screen locks
+let pausedAutomatically = false; // keep track of the timer state between the screen locks
 
 const Indicator = GObject.registerClass(class Indicator extends PanelMenu.Button {
-    _init() {
-        super._init(0.0, 'Toggle Button', false); // Don't toggle menu on click
+    _init(settings) {
+        super._init(0.0, 'Stopwatch Indicator', false); // Don't toggle menu on click
 
+        this._settings = settings;
         this.timer = new Timer.Timer();
-        this.statsManager = new StatsManager();
+        this.statsManager = new StatsManager(this._settings);
 
         if (storage !== 0) {
             this.timer.setElapsedTime(storage);
@@ -94,7 +96,7 @@ const Indicator = GObject.registerClass(class Indicator extends PanelMenu.Button
         this.menu.addMenuItem(clearStatsItem);
 
         // Refresh stats when menu opens
-        this.menu.connect('open-state-changed', (_menu, isOpen) => {
+        this._menuHandlerId = this.menu.connect('open-state-changed', (_menu, isOpen) => {
             if (isOpen && this.statsView) {
                 this.statsView.update();
             }
@@ -102,7 +104,7 @@ const Indicator = GObject.registerClass(class Indicator extends PanelMenu.Button
 
         
         // Connect to label's button events
-        this._label.connect('button-press-event', (actor, event) => {
+        this._labelHandlerId = this._label.connect('button-press-event', (actor, event) => {
             const button = event.get_button();
             
             if (button === 1) { // Left click: toggle start/pause
@@ -126,6 +128,11 @@ const Indicator = GObject.registerClass(class Indicator extends PanelMenu.Button
             this.timer.resume();
         } else { // stopped
             this.timer.start();
+        }
+
+        if (this.timeout) {
+            GLib.source_remove(this.timeout);
+            this.timeout = null;
         }
 
         this.timeout = GLib.timeout_add_seconds(
@@ -186,26 +193,57 @@ const Indicator = GObject.registerClass(class Indicator extends PanelMenu.Button
             GLib.source_remove(this.timeout);
             this.timeout = null;
         }
-        this._label.destroy();
-        this._label = null;
+
+        // Disconnect all signal connections
+        if (this._labelHandlerId) {
+            this._label.disconnect(this._labelHandlerId);
+            this._labelHandlerId = null;
+        }
+
+        if (this._menuHandlerId) {
+            this.menu.disconnect(this._menuHandlerId);
+            this._menuHandlerId = null;
+        }
+
+        // Clean up stats view
+        if (this.statsView) {
+            this.statsView.destroy();
+            this.statsView = null;
+        }
+
+        // Clean up stats manager
+        if (this.statsManager) {
+            this.statsManager = null;
+        }
+
+        // Clean up timer
+        if (this.timer) {
+            this.timer = null;
+        }
+
+        if (this._label) {
+            this._label.destroy();
+            this._label = null;
+        }
+
         super.destroy();
     }
 });
 
-export default class Stopwatch {
-    constructor(uuid) {
-        this._uuid = uuid;
-    }
-
+export default class Stopwatch extends Extension {
     enable() {
-        this._indicator = new Indicator();
+        this._settings = this.getSettings();
+        this._indicator = new Indicator(this._settings);
 
-        Main.panel.addToStatusArea(this._uuid, this._indicator);
+        Main.panel.addToStatusArea(this.metadata.uuid, this._indicator);
     }
 
     disable() {
-        this._indicator.destroy();
-        this._indicator = null;
+        if (this._indicator) {
+            this._indicator.destroy();
+            this._indicator = null;
+        }
+        this._settings = null;
     }
 }
 
