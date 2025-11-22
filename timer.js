@@ -19,6 +19,7 @@ export class Timer {
 
     start() {
         this.state = TimerState.RUNNING;
+        this.startTime = new Date();
         this.lastUpdate = this.getTimeNow();
         this.elapsedTime = 0;
     }

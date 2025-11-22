@@ -47,6 +47,38 @@ export const StatsView = GObject.registerClass(
          });
          this._container.add_child(this._graphTitle);
 
+         // Create main horizontal container for the graph section
+         this._graphSection = new St.BoxLayout({
+            vertical: false,
+            style_class: "stats-graph-section",
+            style: "spacing: 10px;",
+         });
+         this._container.add_child(this._graphSection);
+
+         // Left column for day labels
+         this._dayLabels = new St.BoxLayout({
+            vertical: true,
+            style_class: "stats-day-labels",
+            style: "spacing: 2px; padding-top: 20px;", // Align with grid (month labels height approx)
+         });
+         this._graphSection.add_child(this._dayLabels);
+
+         // Right column for graph and month labels
+         this._graphRightCol = new St.BoxLayout({
+            vertical: true,
+            x_expand: true,
+            style: "spacing: 5px;",
+         });
+         this._graphSection.add_child(this._graphRightCol);
+
+         // Month labels container
+         this._monthLabels = new St.BoxLayout({
+            vertical: false,
+            style_class: "stats-month-labels",
+            style: "spacing: 0px;", // Spacing handled by empty labels or margins
+         });
+         this._graphRightCol.add_child(this._monthLabels);
+
          // Create contributions graph container with horizontal scroll
          this._graphScroll = new St.ScrollView({
             x_expand: true,
@@ -69,7 +101,15 @@ export const StatsView = GObject.registerClass(
          });
 
          this._graphScroll.add_child(this._graphArea);
-         this._container.add_child(this._graphScroll);
+         this._graphRightCol.add_child(this._graphScroll);
+
+         // Hover details label
+         this._hoverDetails = new St.Label({
+            text: "Hover over a square to see details",
+            style_class: "stats-hover-details",
+            style: "font-size: 0.9em; color: #888; margin-top: 5px;",
+         });
+         this._graphRightCol.add_child(this._hoverDetails);
       }
 
       _updateStats() {
@@ -193,16 +233,75 @@ export const StatsView = GObject.registerClass(
             weeks.push(currentWeek);
          }
 
+         // Add month labels
+         this._monthLabels.destroy_all_children();
+         const monthNames = [
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+         ];
+         
+         let lastMonth = -1;
+         weeks.forEach((week, index) => {
+             // Check the month of the first day of the week
+             if (week.length > 0) {
+                 const date = new Date(week[0].date);
+                 const month = date.getMonth();
+                 if (month !== lastMonth) {
+                     const monthLabel = new St.Label({
+                         text: monthNames[month],
+                         style: "font-size: 10px; font-weight: bold;",
+                     });
+                     // Calculate approximate width based on weeks since last label
+                     // This is a simplification; exact pixel alignment is hard in St without fixed widths
+                     // We'll just add the label. For better spacing, we might need empty labels or margins.
+                     this._monthLabels.add_child(monthLabel);
+                     lastMonth = month;
+                 } else {
+                     // Add empty spacer for weeks within the same month
+                     // To prevent clutter, we only add the label once. 
+                     // A spacer might be needed if we want strict alignment, but St.BoxLayout flows naturally.
+                     // Let's try adding a small spacer label to push things apart if needed, 
+                     // but standard flow might be enough if we just drop labels in.
+                     // Actually, for a heatmap, we usually want the label above the *start* of the month.
+                     // Since we can't easily control pixel width of text vs boxes, we'll just add the label.
+                     // A better approach for alignment:
+                     // Add a container for each week in the month row, matching the week width (12px + 2px).
+                     // But that's complex. Let's stick to just adding the label when it changes.
+                     // To ensure some spacing, we can add a margin to the label.
+                     const spacer = new St.Widget({ width: 14, height: 1 }); // Match week width
+                     this._monthLabels.add_child(spacer);
+                 }
+             }
+         });
+
+
          // Build grid cells by adding days to their respective rows
          let boxCount = 0;
          weeks.forEach((week) => {
             week.forEach((day) => {
                const intensity = Math.min(day.time / 3600, 1);
                const color = this._getColorForIntensity(intensity);
-               const dayBox = new St.Bin({
+               const dayBox = new St.Button({
                   style_class: "stats-day-box",
-                  style: `background-color: ${color}; width: 12px; height: 12px;`,
+                  style: `background-color: ${color}; width: 12px; height: 12px; border-radius: 2px;`,
+                  reactive: true,
+                  can_focus: true,
                });
+               
+               // Add hover events
+               dayBox.connect('enter-event', () => {
+                   const dateObj = new Date(day.date);
+                   const dateStr = dateObj.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' });
+                   const timeStr = Misc.formatTime(day.time);
+                   this._hoverDetails.set_text(`${dateStr}: ${timeStr}`);
+                   dayBox.set_style(`background-color: ${color}; width: 12px; height: 12px; border-radius: 2px; border: 1px solid white;`);
+               });
+
+               dayBox.connect('leave-event', () => {
+                   this._hoverDetails.set_text("Hover over a square to see details");
+                   dayBox.set_style(`background-color: ${color}; width: 12px; height: 12px; border-radius: 2px;`);
+               });
+
                const rowIndex = new Date(day.date).getDay(); // 0..6 Sun..Sat
                dayRows[rowIndex].add_child(dayBox);
                boxCount++;
@@ -214,9 +313,9 @@ export const StatsView = GObject.registerClass(
             this._graphArea.add_child(row);
          });
 
-        console.debug(
+         console.debug(
             `Stopwatch: Created ${boxCount} heatmap boxes in ${weeks.length} weeks`
-        );
+         );
       }
 
       _getColorForIntensity(intensity) {

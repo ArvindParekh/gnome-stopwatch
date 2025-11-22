@@ -25,12 +25,13 @@ export class StatsManager {
         this._settings.set_string("stats", JSON.stringify(this._stats));
     }
 
-    addSession(duration) {
-        const today = new Date().toISOString().split("T")[0];
-        if (!this._stats[today]) {
-            this._stats[today] = 0;
+    addSession(duration, date = null) {
+        const sessionDate = date || new Date();
+        const dateStr = sessionDate.toISOString().split("T")[0];
+        if (!this._stats[dateStr]) {
+            this._stats[dateStr] = 0;
         }
-        this._stats[today] += duration;
+        this._stats[dateStr] += duration;
         this._saveStats();
     }
 

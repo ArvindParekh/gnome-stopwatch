@@ -160,7 +160,7 @@ const Indicator = GObject.registerClass(class Indicator extends PanelMenu.Button
     _reset() {
         // Save the session time before resetting
         if (this.timer.elapsedTime > 0) {
-            this.statsManager.addSession(this.timer.elapsedTime);
+            this.statsManager.addSession(this.timer.elapsedTime, this.timer.startTime);
             this.statsView.update();
         }
 
