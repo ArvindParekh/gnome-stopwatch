@@ -316,9 +316,8 @@ export const StatsView = GObject.registerClass(
          let boxCount = 0;
          weeks.forEach((week) => {
             week.forEach((day) => {
-               // Normalize intensity based on 10 hours (36000 seconds) max
-               const intensity = Math.min(day.time / 36000, 1);
-               const color = this._getColorForIntensity(intensity);
+               // Pass raw seconds to determine color bucket
+               const color = this._getColorForIntensity(day.time);
                const dayBox = new St.Button({
                   style_class: "stats-day-box",
                   // Add transparent border to prevent layout shift on hover
@@ -368,17 +367,43 @@ export const StatsView = GObject.registerClass(
          );
       }
 
-      _getColorForIntensity(intensity) {
-         // Modern shadcn-inspired color scheme with better visibility
-         // Scale: 0-10 hours
-         if (intensity === 0) return "rgba(63, 63, 70, 0.3)"; // Empty state - subtle gray
+      _getColorForIntensity(seconds) {
+         // 1. Empty State
+         if (seconds === 0) return "rgba(63, 63, 70, 0.3)"; // Subtle gray
+
+         const hours = seconds / 3600;
+
+         // 2. Micro Sessions (< 1 hour)
+         // Use a very light purple to harmonize with the gradient
+         if (hours < 1) return "#e9d5ff";
+
+         // 3. 1-Hour Steps Gradient (1h to 16h+)
+         // We want a distinct shade for every hour.
+         // Clamp hours to 16 max for the calculation
+         const h = Math.min(Math.floor(hours), 16);
          
-         // 5 levels of intensity
-         if (intensity < 0.2) return "#ede9fe"; // Level 1: 0-2h (Very Light Purple)
-         if (intensity < 0.4) return "#c4b5fd"; // Level 2: 2-4h (Light Purple)
-         if (intensity < 0.6) return "#a78bfa"; // Level 3: 4-6h (Medium Purple)
-         if (intensity < 0.8) return "#8b5cf6"; // Level 4: 6-8h (Dark Purple)
-         return "#7c3aed";                      // Level 5: 8h+ (Deep Purple)
+         // Calculate Lightness (L) in HSL(270, 85%, L%)
+         // Start (1h): 75% (Light Purple)
+         // End (16h): 20% (Absolute Dark Purple)
+         // Range: 55% over 15 steps (1 to 16) -> ~3.66% per step
+         const lightness = 75 - ((h - 1) * (55 / 15));
+         
+         return this._hslToRgb(270, 85, lightness);
+      }
+
+      _hslToRgb(h, s, l) {
+          s /= 100;
+          l /= 100;
+          const k = n => (n + h / 30) % 12;
+          const a = s * Math.min(l, 1 - l);
+          const f = n =>
+              l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+          
+          const r = Math.round(255 * f(0));
+          const g = Math.round(255 * f(8));
+          const b = Math.round(255 * f(4));
+          
+          return `rgb(${r}, ${g}, ${b})`;
       }
 
       // No Cairo helpers needed with grid-based layout

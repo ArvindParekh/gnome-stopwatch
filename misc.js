@@ -54,6 +54,9 @@ export function formatTimeVerbose(seconds) {
         text += `${hours} hr`;
         if (minutes > 0) text += ` ${minutes} min`;
     } else {
+        if (minutes === 0 && seconds > 0) {
+            return "< 1 min";
+        }
         text += `${minutes} min`;
     }
     
