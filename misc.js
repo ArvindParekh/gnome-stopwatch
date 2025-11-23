@@ -37,6 +37,30 @@ export function formatTime(seconds) {
 }
 
 /**
+ * Formats the Time to be nicely formatted for printing to the user (Verbose).
+ * @param {*} seconds
+ * @returns the formatted time as a string like "2 hr 15 min"
+ */
+export function formatTimeVerbose(seconds) {
+    if (!seconds || seconds === 0) return "0 min";
+
+    let secondsLeft = seconds;
+    let hours = Math.floor(secondsLeft / 3600);
+    secondsLeft -= hours * 3600;
+    let minutes = Math.floor(secondsLeft / 60);
+
+    let text = "";
+    if (hours > 0) {
+        text += `${hours} hr`;
+        if (minutes > 0) text += ` ${minutes} min`;
+    } else {
+        text += `${minutes} min`;
+    }
+    
+    return text;
+}
+
+/**
  * Takes a Time String like 2:47 (2min 47) and returns the time in seconds.
  * @param {*} text a string like 2:47 or 1:12:10 (1h, 12min, 10sec)
  */

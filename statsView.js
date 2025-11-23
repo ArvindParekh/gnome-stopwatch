@@ -316,7 +316,8 @@ export const StatsView = GObject.registerClass(
          let boxCount = 0;
          weeks.forEach((week) => {
             week.forEach((day) => {
-               const intensity = Math.min(day.time / 3600, 1);
+               // Normalize intensity based on 10 hours (36000 seconds) max
+               const intensity = Math.min(day.time / 36000, 1);
                const color = this._getColorForIntensity(intensity);
                const dayBox = new St.Button({
                   style_class: "stats-day-box",
@@ -334,7 +335,7 @@ export const StatsView = GObject.registerClass(
                    const [y, m, d] = day.date.split('-').map(Number);
                    const dateObj = new Date(y, m - 1, d);
                    const dateStr = dateObj.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' });
-                   const timeStr = Misc.formatTime(day.time);
+                   const timeStr = Misc.formatTimeVerbose(day.time);
                    this._hoverDetails.set_text(`${dateStr}: ${timeStr}`);
                    // Maintain strict sizing on hover
                    dayBox.set_style(`background-color: ${color}; min-width: 10px; min-height: 10px; width: 10px; height: 10px; padding: 0; margin: 0; border-radius: 2px; border: 1px solid white; box-shadow: none;`);
@@ -369,11 +370,15 @@ export const StatsView = GObject.registerClass(
 
       _getColorForIntensity(intensity) {
          // Modern shadcn-inspired color scheme with better visibility
+         // Scale: 0-10 hours
          if (intensity === 0) return "rgba(63, 63, 70, 0.3)"; // Empty state - subtle gray
-         if (intensity < 0.25) return "#a78bfa"; // Light purple
-         if (intensity < 0.5) return "#8b5cf6"; // Medium purple
-         if (intensity < 0.75) return "#7c3aed"; // Darker purple
-         return "#6d28d9"; // Deep purple
+         
+         // 5 levels of intensity
+         if (intensity < 0.2) return "#ede9fe"; // Level 1: 0-2h (Very Light Purple)
+         if (intensity < 0.4) return "#c4b5fd"; // Level 2: 2-4h (Light Purple)
+         if (intensity < 0.6) return "#a78bfa"; // Level 3: 4-6h (Medium Purple)
+         if (intensity < 0.8) return "#8b5cf6"; // Level 4: 6-8h (Dark Purple)
+         return "#7c3aed";                      // Level 5: 8h+ (Deep Purple)
       }
 
       // No Cairo helpers needed with grid-based layout
