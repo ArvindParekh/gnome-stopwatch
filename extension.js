@@ -52,9 +52,6 @@ const Indicator = GObject.registerClass(class Indicator extends PanelMenu.Button
         this.timer = new Timer.Timer();
         this.statsManager = new StatsManager(this._settings);
 
-        // Restore timer state if persistence is enabled
-        this._restoreTimerState();
-
         this._label = new St.Label({
             text: Misc.formatTime(this.timer.elapsedTime),
             y_align: Clutter.ActorAlign.CENTER, style_class: 'paused'
@@ -114,6 +111,10 @@ const Indicator = GObject.registerClass(class Indicator extends PanelMenu.Button
             
             return Clutter.EVENT_PROPAGATE;
         });
+
+        // Restore timer state if persistence is enabled
+        // IMPORTANT: This must be called AFTER all UI elements are created
+        this._restoreTimerState();
     }
 
     _startResume() {
@@ -137,6 +138,13 @@ const Indicator = GObject.registerClass(class Indicator extends PanelMenu.Button
                 }
                 this.timer.updateElapsedTime();
                 this._updateLabel();
+                
+                // Periodically save state while running (every 5 seconds)
+                const now = Date.now();
+                if (!this._lastSaveTime || (now - this._lastSaveTime) >= 5000) {
+                    this._saveTimerState();
+                    this._lastSaveTime = now;
+                }
 
                 return true;
             });
@@ -146,8 +154,10 @@ const Indicator = GObject.registerClass(class Indicator extends PanelMenu.Button
 
     _pause() {
         this.timer.pause();
-
         this._label.set_style_class_name('paused');
+        
+        // Save timer state when pausing
+        this._saveTimerState();
     }
 
     _reset() {
@@ -163,6 +173,7 @@ const Indicator = GObject.registerClass(class Indicator extends PanelMenu.Button
         
         // Clear persisted timer state
         this._clearTimerState();
+        this._lastSaveTime = null;
 
         if (this.timeout) {
             GLib.source_remove(this.timeout);
@@ -178,41 +189,68 @@ const Indicator = GObject.registerClass(class Indicator extends PanelMenu.Button
     }
 
     _restoreTimerState() {
+        // Debug: Check if we can read the persist-timer setting
+        const persistEnabled = this._settings.get_boolean('persist-timer');
+        console.log(`[Stopwatch] persist-timer setting: ${persistEnabled}`);
+        
         // Only restore if persistence is enabled
-        if (!this._settings.get_boolean('persist-timer')) {
+        if (!persistEnabled) {
+            console.log('[Stopwatch] Persistence disabled, skipping restore');
             return;
         }
 
         const savedElapsedTime = this._settings.get_double('elapsed-time');
         const wasRunning = this._settings.get_boolean('was-running');
         const startTimestamp = this._settings.get_int64('start-timestamp');
+        
+        console.log(`[Stopwatch] Restoring state: elapsed=${savedElapsedTime}s, wasRunning=${wasRunning}, startTime=${startTimestamp}`);
 
         if (savedElapsedTime > 0) {
             this.timer.setElapsedTime(savedElapsedTime);
             if (startTimestamp > 0) {
                 this.timer.startTime = new Date(startTimestamp);
             }
-            this.timer.pause();
+            // Set lastUpdate to current time before pausing
+            // This ensures the timer has a valid reference point
+            this.timer.lastUpdate = this.timer.getTimeNow();
+            this.timer.state = 'Paused';  // Set state directly instead of calling pause()
             this._updateLabel();
 
             if (wasRunning) {
+                console.log('[Stopwatch] Timer was running, resuming...');
                 this._startResume();
             }
+        } else {
+            console.log('[Stopwatch] No saved time to restore');
         }
     }
 
     _saveTimerState() {
-        // Only save if persistence is enabled
-        if (!this._settings.get_boolean('persist-timer')) {
-            this._clearTimerState();
-            return;
-        }
+        try {
+            console.log('[Stopwatch] _saveTimerState() called');
+            
+            // Only save if persistence is enabled
+            const persistEnabled = this._settings.get_boolean('persist-timer');
+            console.log(`[Stopwatch] persist-timer = ${persistEnabled}`);
+            
+            if (!persistEnabled) {
+                console.log('[Stopwatch] Persistence disabled, clearing state');
+                this._clearTimerState();
+                return;
+            }
 
-        this._settings.set_double('elapsed-time', this.timer.elapsedTime);
-        this._settings.set_boolean('was-running', this.timer.isRunning());
-        
-        if (this.timer.startTime) {
-            this._settings.set_int64('start-timestamp', this.timer.startTime.getTime());
+            console.log(`[Stopwatch] Saving state: elapsed=${this.timer.elapsedTime}s, running=${this.timer.isRunning()}, startTime=${this.timer.startTime?.getTime()}`);
+            
+            this._settings.set_double('elapsed-time', this.timer.elapsedTime);
+            this._settings.set_boolean('was-running', this.timer.isRunning());
+            
+            if (this.timer.startTime) {
+                this._settings.set_int64('start-timestamp', this.timer.startTime.getTime());
+            }
+            
+            console.log('[Stopwatch] State saved successfully');
+        } catch (error) {
+            console.error(`[Stopwatch] Error saving timer state: ${error}`);
         }
     }
 
@@ -223,6 +261,8 @@ const Indicator = GObject.registerClass(class Indicator extends PanelMenu.Button
     }
 
     destroy() {
+        console.log('[Stopwatch] destroy() called');
+        
         // Save timer state if persistence is enabled
         this._saveTimerState();
 
