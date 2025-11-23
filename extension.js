@@ -1,6 +1,6 @@
 /** extension.js
  * MIT License
- * Copyright © 2023 Aliaksei Zhuk
+ * Copyright © 2023 Arvind Parekh
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,8 +42,7 @@ import * as Timer from './timer.js';
 import { StatsManager } from './stats2.js';
 import { StatsView } from './statsView.js';
 
-let storage = 0; // keep the timer state between screen locks
-let pausedAutomatically = false; // keep track of the timer state between the screen locks
+// Timer persistence is now handled via GSettings (see persist-timer setting)
 
 const Indicator = GObject.registerClass(class Indicator extends PanelMenu.Button {
     _init(settings) {
@@ -53,10 +52,8 @@ const Indicator = GObject.registerClass(class Indicator extends PanelMenu.Button
         this.timer = new Timer.Timer();
         this.statsManager = new StatsManager(this._settings);
 
-        if (storage !== 0) {
-            this.timer.setElapsedTime(storage);
-            this.timer.pause();
-        }
+        // Restore timer state if persistence is enabled
+        this._restoreTimerState();
 
         this._label = new St.Label({
             text: Misc.formatTime(this.timer.elapsedTime),
@@ -67,10 +64,6 @@ const Indicator = GObject.registerClass(class Indicator extends PanelMenu.Button
         // Make label reactive to receive events
         this._label.reactive = true;
 
-        if (pausedAutomatically) {
-            pausedAutomatically = false;
-            this._startResume();
-        }
 
         // Create menu
         this.menu.box.add_child(new PopupMenu.PopupSeparatorMenuItem());
@@ -167,7 +160,9 @@ const Indicator = GObject.registerClass(class Indicator extends PanelMenu.Button
         this.timer.stop();
         this._updateLabel();
         this._label.set_style_class_name('paused');
-        storage = 0;
+        
+        // Clear persisted timer state
+        this._clearTimerState();
 
         if (this.timeout) {
             GLib.source_remove(this.timeout);
@@ -182,14 +177,56 @@ const Indicator = GObject.registerClass(class Indicator extends PanelMenu.Button
         }
     }
 
-    destroy() {
-        // If the timer was not paused manually, set the flag to later restart the timer
-        if (this.timer.isRunning()) {
-            pausedAutomatically = true;
+    _restoreTimerState() {
+        // Only restore if persistence is enabled
+        if (!this._settings.get_boolean('persist-timer')) {
+            return;
         }
 
+        const savedElapsedTime = this._settings.get_double('elapsed-time');
+        const wasRunning = this._settings.get_boolean('was-running');
+        const startTimestamp = this._settings.get_int64('start-timestamp');
+
+        if (savedElapsedTime > 0) {
+            this.timer.setElapsedTime(savedElapsedTime);
+            if (startTimestamp > 0) {
+                this.timer.startTime = new Date(startTimestamp);
+            }
+            this.timer.pause();
+            this._updateLabel();
+
+            if (wasRunning) {
+                this._startResume();
+            }
+        }
+    }
+
+    _saveTimerState() {
+        // Only save if persistence is enabled
+        if (!this._settings.get_boolean('persist-timer')) {
+            this._clearTimerState();
+            return;
+        }
+
+        this._settings.set_double('elapsed-time', this.timer.elapsedTime);
+        this._settings.set_boolean('was-running', this.timer.isRunning());
+        
+        if (this.timer.startTime) {
+            this._settings.set_int64('start-timestamp', this.timer.startTime.getTime());
+        }
+    }
+
+    _clearTimerState() {
+        this._settings.set_double('elapsed-time', 0.0);
+        this._settings.set_boolean('was-running', false);
+        this._settings.set_int64('start-timestamp', 0);
+    }
+
+    destroy() {
+        // Save timer state if persistence is enabled
+        this._saveTimerState();
+
         if (this.timeout) {
-            storage = this.timer.elapsedTime;
             GLib.source_remove(this.timeout);
             this.timeout = null;
         }
