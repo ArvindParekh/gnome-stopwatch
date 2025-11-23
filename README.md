@@ -195,13 +195,64 @@ Contributions are welcome! Please follow these guidelines:
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-### Areas for Contribution
+### Roadmap & Areas for Contribution
 
-- **Themes**: Additional color schemes for the heatmap
-- **Export**: CSV/JSON export for statistics
-- **Notifications**: Milestone notifications (e.g., every 25 minutes)
-- **Keyboard Shortcuts**: Global shortcuts for timer control
-- **Localization**: Translations for other languages
+We're looking for contributors to help implement these features! Each would significantly enhance the user experience:
+
+#### ⌨️ Keyboard Shortcuts
+**Status**: Help Wanted  
+**Priority**: High
+
+Add global hotkeys for friction-free timer control:
+- `Super+Shift+S` to start/pause
+- `Super+Shift+R` to reset  
+- Configurable shortcuts in preferences
+- Works even when extension menu is closed
+
+**Why it matters**: Power users can track time without breaking their flow. No need to reach for the mouse or find the panel icon.
+
+#### 🔥 Focus Streaks
+**Status**: Help Wanted  
+**Priority**: Medium
+
+Track consecutive days of focus to build lasting habits:
+- "You've focused X days in a row!" notification
+- Current streak displayed in tooltip/badge
+- Streak counter in stats view
+- Visual celebration when reaching milestones (7, 30, 100 days)
+
+**Why it matters**: Gamification builds habits through "don't break the chain" psychology. Makes productivity tracking more engaging and motivating.
+
+#### 🎨 Ambient Mode Indicators
+**Status**: Help Wanted  
+**Priority**: Medium
+
+Color-coded panel icon based on session duration:
+- **0-15 min**: Cool blue (just started)
+- **15-45 min**: Green (in the zone!)
+- **45-90 min**: Yellow (impressive focus!)
+- **90+ min**: Red (time for a break!)
+
+**Why it matters**: Passive awareness of your focus state without checking. Gentle visual reminder to take breaks for health and productivity.
+
+#### 📦 Data Export & Import
+**Status**: Help Wanted  
+**Priority**: High
+
+Give users full ownership of their productivity data:
+- Export statistics to CSV/JSON formats
+- Import/restore from backup files
+- Backup before clearing stats
+- API documentation for custom integrations
+
+**Why it matters**: Data ownership and portability. Advanced users can analyze trends in Excel, integrate with other tools, or build custom dashboards.
+
+#### Other Contribution Ideas
+
+- **Themes**: Alternative color schemes for the heatmap (e.g., green like GitHub, blue, warm tones)
+- **Notifications**: Desktop notifications for milestones (every 25 min for Pomodoro compatibility)
+- **Localization**: Translations for international users
+- **Performance**: Optimize heatmap rendering for multi-year data
 
 ## License
 
