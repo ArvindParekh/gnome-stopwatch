@@ -59,7 +59,8 @@ export const StatsView = GObject.registerClass(
          this._dayLabels = new St.BoxLayout({
             vertical: true,
             style_class: "stats-day-labels",
-            style: "spacing: 2px; padding-top: 20px;", // Align with grid (month labels height approx)
+            // Padding top calculation: 20px (month labels height) + 2px (spacing) + 12px (graph padding) = 34px
+            style: "spacing: 2px; padding-top: 34px; width: 30px; margin-right: 5px;", // Fixed width and margin
          });
          this._graphSection.add_child(this._dayLabels);
 
@@ -70,14 +71,6 @@ export const StatsView = GObject.registerClass(
             style: "spacing: 5px;",
          });
          this._graphSection.add_child(this._graphRightCol);
-
-         // Month labels container
-         this._monthLabels = new St.BoxLayout({
-            vertical: false,
-            style_class: "stats-month-labels",
-            style: "spacing: 0px;", // Spacing handled by empty labels or margins
-         });
-         this._graphRightCol.add_child(this._monthLabels);
 
          // Create contributions graph container with horizontal scroll
          this._graphScroll = new St.ScrollView({
@@ -91,6 +84,23 @@ export const StatsView = GObject.registerClass(
             St.PolicyType.AUTOMATIC,
             St.PolicyType.NEVER
          );
+         this._graphRightCol.add_child(this._graphScroll);
+
+         // Container for scrollable content (Months + Grid)
+         this._scrollContent = new St.BoxLayout({
+            vertical: true,
+            style: "spacing: 2px;",
+         });
+         this._graphScroll.add_child(this._scrollContent);
+
+         // Month labels container - use a Widget with FixedLayout for precise positioning
+         this._monthLabels = new St.Widget({
+            layout_manager: new Clutter.FixedLayout(),
+            x_expand: true,
+            y_expand: false,
+            height: 20, // Sufficient height for labels
+         });
+         this._scrollContent.add_child(this._monthLabels);
 
          // Use nested BoxLayouts for the grid (more reliable than GridLayout)
          this._graphArea = new St.BoxLayout({
@@ -100,8 +110,7 @@ export const StatsView = GObject.registerClass(
             style: "spacing: 2px;",
          });
 
-         this._graphScroll.add_child(this._graphArea);
-         this._graphRightCol.add_child(this._graphScroll);
+         this._scrollContent.add_child(this._graphArea);
 
          // Hover details label
          this._hoverDetails = new St.Label({
@@ -117,6 +126,8 @@ export const StatsView = GObject.registerClass(
          this._summary.destroy_all_children();
          // Clear any existing graph children
          this._graphArea.destroy_all_children();
+         // Clear day labels to prevent duplication
+         this._dayLabels.destroy_all_children();
 
          // Create 7 row containers for the heatmap (one for each day of week)
          const dayRows = [];
@@ -131,7 +142,23 @@ export const StatsView = GObject.registerClass(
          // Add summary stats with modern card design
          const totalTime = this._statsManager.getTotalTime();
          const avgTime = this._statsManager.getAverageTime();
-         const bestDay = this._statsManager.getMaxDay(365);
+         // Calculate days needed for the view
+         const msPerDay = 24 * 60 * 60 * 1000;
+         const today = new Date();
+         const end = new Date(
+            today.getFullYear(),
+            today.getMonth(),
+            today.getDate()
+         );
+         // Start from Jan 1st of current year
+         const startOfYear = new Date(today.getFullYear(), 0, 1);
+         const startWeekday = startOfYear.getDay(); // 0 = Sunday
+         // Align start to the Sunday of the week containing Jan 1st
+         const start = new Date(startOfYear);
+         start.setDate(startOfYear.getDate() - startWeekday);
+         const daysNeeded = Math.ceil((end - start) / msPerDay) + 1;
+         const stats = this._statsManager.getStats(daysNeeded);
+         const bestDay = this._statsManager.getMaxDay(daysNeeded);
 
          // Total time card
          const totalCard = new St.BoxLayout({
@@ -191,6 +218,18 @@ export const StatsView = GObject.registerClass(
                style_class: "stats-card-value",
             })
          );
+         const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+         days.forEach((day) => {
+            this._dayLabels.add_child(
+               new St.Label({
+                  text: day,
+                  // Use strict height and line-height to match the grid rows
+                  style: "font-size: 9px; height: 10px; line-height: 10px; margin-bottom: 2px; padding: 0; text-align: right;", 
+                  y_align: Clutter.ActorAlign.CENTER,
+                  x_align: Clutter.ActorAlign.END, // Align text to right
+               })
+            );
+         });
          if (bestDate) {
             bestCard.add_child(
                new St.Label({
@@ -203,25 +242,20 @@ export const StatsView = GObject.registerClass(
          this._summary.add_child(bestCard);
 
          // Create contributions graph
-         const stats = this._statsManager.getStats(365);
-
-         // Align to Sunday as the first row like GitHub
-         const today = new Date();
-         const end = new Date(
-            today.getFullYear(),
-            today.getMonth(),
-            today.getDate()
-         );
-         const endWeekday = end.getDay(); // 0 = Sunday
-         const totalDays = 365;
-         const start = new Date(end);
-         start.setDate(end.getDate() - (totalDays - 1 + endWeekday));
+         // Calendar Year View (Jan 1st - Today)
+         // Note: 'today', 'end', 'start' are already calculated above for stats fetching
 
          const weeks = [];
          let currentWeek = [];
          const cursor = new Date(start);
          while (cursor <= end) {
-            const dateStr = cursor.toISOString().split("T")[0];
+            // Use local date string for stats lookup
+            // Format: YYYY-MM-DD in local time
+            const year = cursor.getFullYear();
+            const month = String(cursor.getMonth() + 1).padStart(2, '0');
+            const day = String(cursor.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${day}`;
+            
             currentWeek.push({ date: dateStr, time: stats[dateStr] || 0 });
             if (currentWeek.length === 7) {
                weeks.push(currentWeek);
@@ -233,43 +267,46 @@ export const StatsView = GObject.registerClass(
             weeks.push(currentWeek);
          }
 
-         // Add month labels
+         // Add month labels with fixed positioning
          this._monthLabels.destroy_all_children();
          const monthNames = [
             "Jan", "Feb", "Mar", "Apr", "May", "Jun",
             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
          ];
          
-         let lastMonth = -1;
+         let lastMonthYear = ""; // Track "YYYY-MM" to handle same month in different years
+         let lastXPos = -100; // Track last label position to prevent overlap
+         
          weeks.forEach((week, index) => {
              // Check the month of the first day of the week
              if (week.length > 0) {
-                 const date = new Date(week[0].date);
+                 // Parse date manually to avoid UTC conversion issues
+                 const [y, m, d] = week[0].date.split('-').map(Number);
+                 const date = new Date(y, m - 1, d);
                  const month = date.getMonth();
-                 if (month !== lastMonth) {
-                     const monthLabel = new St.Label({
-                         text: monthNames[month],
-                         style: "font-size: 10px; font-weight: bold;",
-                     });
-                     // Calculate approximate width based on weeks since last label
-                     // This is a simplification; exact pixel alignment is hard in St without fixed widths
-                     // We'll just add the label. For better spacing, we might need empty labels or margins.
-                     this._monthLabels.add_child(monthLabel);
-                     lastMonth = month;
-                 } else {
-                     // Add empty spacer for weeks within the same month
-                     // To prevent clutter, we only add the label once. 
-                     // A spacer might be needed if we want strict alignment, but St.BoxLayout flows naturally.
-                     // Let's try adding a small spacer label to push things apart if needed, 
-                     // but standard flow might be enough if we just drop labels in.
-                     // Actually, for a heatmap, we usually want the label above the *start* of the month.
-                     // Since we can't easily control pixel width of text vs boxes, we'll just add the label.
-                     // A better approach for alignment:
-                     // Add a container for each week in the month row, matching the week width (12px + 2px).
-                     // But that's complex. Let's stick to just adding the label when it changes.
-                     // To ensure some spacing, we can add a margin to the label.
-                     const spacer = new St.Widget({ width: 14, height: 1 }); // Match week width
-                     this._monthLabels.add_child(spacer);
+                 const monthYear = `${y}-${m}`; // Track year + month
+                 
+                 // Only show labels for the current year
+                 if (y < today.getFullYear()) return;
+
+                 if (monthYear !== lastMonthYear) {
+                     // Calculate X position: index * (12px width + 2px spacing)
+                     const xPos = index * 14;
+                     
+                     // Only add label if it doesn't overlap with previous one
+                     // Increased threshold to 40px to prevent cramping
+                     if (xPos - lastXPos > 40) {
+                         const monthLabel = new St.Label({
+                             text: monthNames[month],
+                             style: "font-size: 10px; font-weight: bold;",
+                         });
+                         
+                         this._monthLabels.add_child(monthLabel);
+                         monthLabel.set_position(xPos, 0);
+                         
+                         lastMonthYear = monthYear;
+                         lastXPos = xPos;
+                     }
                  }
              }
          });
@@ -283,28 +320,40 @@ export const StatsView = GObject.registerClass(
                const color = this._getColorForIntensity(intensity);
                const dayBox = new St.Button({
                   style_class: "stats-day-box",
-                  style: `background-color: ${color}; width: 12px; height: 12px; border-radius: 2px;`,
+                  // Add transparent border to prevent layout shift on hover
+                  // Width 10px + 2px border = 12px total width. Spacing is 2px. Total stride = 14px.
+                  // Force strict sizing to prevent theme interference
+                  style: `background-color: ${color}; min-width: 10px; min-height: 10px; width: 10px; height: 10px; padding: 0; margin: 0; border-radius: 2px; border: 1px solid transparent; box-shadow: none;`,
                   reactive: true,
                   can_focus: true,
                });
                
                // Add hover events
                dayBox.connect('enter-event', () => {
-                   const dateObj = new Date(day.date);
+                   // Parse date manually to ensure correct local date display
+                   const [y, m, d] = day.date.split('-').map(Number);
+                   const dateObj = new Date(y, m - 1, d);
                    const dateStr = dateObj.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' });
                    const timeStr = Misc.formatTime(day.time);
                    this._hoverDetails.set_text(`${dateStr}: ${timeStr}`);
-                   dayBox.set_style(`background-color: ${color}; width: 12px; height: 12px; border-radius: 2px; border: 1px solid white;`);
+                   // Maintain strict sizing on hover
+                   dayBox.set_style(`background-color: ${color}; min-width: 10px; min-height: 10px; width: 10px; height: 10px; padding: 0; margin: 0; border-radius: 2px; border: 1px solid white; box-shadow: none;`);
                });
 
                dayBox.connect('leave-event', () => {
                    this._hoverDetails.set_text("Hover over a square to see details");
-                   dayBox.set_style(`background-color: ${color}; width: 12px; height: 12px; border-radius: 2px;`);
+                   // Restore strict sizing on leave
+                   dayBox.set_style(`background-color: ${color}; min-width: 10px; min-height: 10px; width: 10px; height: 10px; padding: 0; margin: 0; border-radius: 2px; border: 1px solid transparent; box-shadow: none;`);
                });
 
-               const rowIndex = new Date(day.date).getDay(); // 0..6 Sun..Sat
-               dayRows[rowIndex].add_child(dayBox);
-               boxCount++;
+               // Parse date manually for correct day of week
+               const [y, m, d] = day.date.split('-').map(Number);
+               const rowIndex = new Date(y, m - 1, d).getDay(); // 0..6 Sun..Sat
+               
+               if (dayRows[rowIndex]) {
+                   dayRows[rowIndex].add_child(dayBox);
+                   boxCount++;
+               }
             });
          });
 
