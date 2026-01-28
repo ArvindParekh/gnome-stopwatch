@@ -142,7 +142,7 @@ export const StatsView = GObject.registerClass(
          // Add summary stats with modern card design
          const totalTime = this._statsManager.getTotalTime();
          const avgTime = this._statsManager.getAverageTime();
-         // Calculate days needed for the view
+         // Calculate days needed for the view (GitHub-style: rolling 365 days)
          const msPerDay = 24 * 60 * 60 * 1000;
          const today = new Date();
          const end = new Date(
@@ -150,13 +150,18 @@ export const StatsView = GObject.registerClass(
             today.getMonth(),
             today.getDate()
          );
-         // Start from Jan 1st of current year
-         const startOfYear = new Date(today.getFullYear(), 0, 1);
-         const startWeekday = startOfYear.getDay(); // 0 = Sunday
-         // Align start to the Sunday of the week containing Jan 1st
-         const start = new Date(startOfYear);
-         start.setDate(startOfYear.getDate() - startWeekday);
-         const daysNeeded = Math.ceil((end - start) / msPerDay) + 1;
+         // Find the end of this week (Saturday) to align the grid
+         const endWeekday = end.getDay(); // 0 = Sunday
+         const daysUntilSaturday = 6 - endWeekday;
+         const endOfWeek = new Date(end);
+         endOfWeek.setDate(end.getDate() + daysUntilSaturday);
+         
+         // GitHub shows 53 weeks (371 days) ending on the current week's Saturday
+         // Start from 52 weeks before the end of this week (gives us 53 weeks total)
+         const start = new Date(endOfWeek);
+         start.setDate(endOfWeek.getDate() - (52 * 7)); // 52 weeks back = 53 weeks total
+         
+         const daysNeeded = Math.ceil((endOfWeek - start) / msPerDay) + 1;
          const stats = this._statsManager.getStats(daysNeeded);
          const bestDay = this._statsManager.getMaxDay(daysNeeded);
 
@@ -242,13 +247,13 @@ export const StatsView = GObject.registerClass(
          this._summary.add_child(bestCard);
 
          // Create contributions graph
-         // Calendar Year View (Jan 1st - Today)
-         // Note: 'today', 'end', 'start' are already calculated above for stats fetching
+         // Rolling 365-day View (GitHub-style)
+         // Note: 'today', 'endOfWeek', 'start' are already calculated above for stats fetching
 
          const weeks = [];
          let currentWeek = [];
          const cursor = new Date(start);
-         while (cursor <= end) {
+         while (cursor <= endOfWeek) {
             // Use local date string for stats lookup
             // Format: YYYY-MM-DD in local time
             const year = cursor.getFullYear();
@@ -286,8 +291,7 @@ export const StatsView = GObject.registerClass(
                  const month = date.getMonth();
                  const monthYear = `${y}-${m}`; // Track year + month
                  
-                 // Only show labels for the current year
-                 if (y < today.getFullYear()) return;
+                 // Show labels for all months in the rolling window
 
                  if (monthYear !== lastMonthYear) {
                      // Calculate X position: index * (12px width + 2px spacing)
