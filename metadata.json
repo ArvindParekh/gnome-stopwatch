@@ -10,5 +10,5 @@
     ],
     "url": "https://github.com/ArvindParekh/gnome-stopwatch",
     "settings-schema": "org.gnome.shell.extensions.stopwatch",
-    "version": 13
+    "version": 14
 }

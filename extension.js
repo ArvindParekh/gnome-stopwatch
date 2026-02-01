@@ -226,32 +226,28 @@ const Indicator = GObject.registerClass(class Indicator extends PanelMenu.Button
     }
 
     _saveTimerState() {
-        try {
-            console.log('[Stopwatch] _saveTimerState() called');
-            
-            // Only save if persistence is enabled
-            const persistEnabled = this._settings.get_boolean('persist-timer');
-            console.log(`[Stopwatch] persist-timer = ${persistEnabled}`);
-            
-            if (!persistEnabled) {
-                console.log('[Stopwatch] Persistence disabled, clearing state');
-                this._clearTimerState();
-                return;
-            }
-
-            console.log(`[Stopwatch] Saving state: elapsed=${this.timer.elapsedTime}s, running=${this.timer.isRunning()}, startTime=${this.timer.startTime?.getTime()}`);
-            
-            this._settings.set_double('elapsed-time', this.timer.elapsedTime);
-            this._settings.set_boolean('was-running', this.timer.isRunning());
-            
-            if (this.timer.startTime) {
-                this._settings.set_int64('start-timestamp', this.timer.startTime.getTime());
-            }
-            
-            console.log('[Stopwatch] State saved successfully');
-        } catch (error) {
-            console.error(`[Stopwatch] Error saving timer state: ${error}`);
+        console.log('[Stopwatch] _saveTimerState() called');
+        
+        // Only save if persistence is enabled
+        const persistEnabled = this._settings.get_boolean('persist-timer');
+        console.log(`[Stopwatch] persist-timer = ${persistEnabled}`);
+        
+        if (!persistEnabled) {
+            console.log('[Stopwatch] Persistence disabled, clearing state');
+            this._clearTimerState();
+            return;
         }
+
+        console.log(`[Stopwatch] Saving state: elapsed=${this.timer.elapsedTime}s, running=${this.timer.isRunning()}, startTime=${this.timer.startTime?.getTime()}`);
+        
+        this._settings.set_double('elapsed-time', this.timer.elapsedTime);
+        this._settings.set_boolean('was-running', this.timer.isRunning());
+        
+        if (this.timer.startTime) {
+            this._settings.set_int64('start-timestamp', this.timer.startTime.getTime());
+        }
+        
+        console.log('[Stopwatch] State saved successfully');
     }
 
     _clearTimerState() {

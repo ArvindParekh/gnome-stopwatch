@@ -25,7 +25,9 @@ export default class StopwatchPreferences extends ExtensionPreferences {
         });
         
         // Bind the switch to the settings
-        this.getSettings().bind(
+        // Bind the switch to the settings
+        window._settings = this.getSettings();
+        window._settings.bind(
             'persist-timer',
             persistRow,
             'active',
